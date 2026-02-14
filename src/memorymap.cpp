@@ -2,22 +2,22 @@
 #include <stdexcept>
 #include <cassert>
 
-cppnes::ZpAddress cppnes::ZeroPageAllocator::alloc(std::string_view name)
+cppnes::ZpAddress cppnes::ZeroPageAllocator::alloc(std::string_view name, bool constant)
 {
   if (next_ > Max)
     throw std::out_of_range("ZeroPageAllocator: zero page exhausted");
 
   uint16_t addr = next_++;
-  return ZpAddress::fromValue(addr, name);
+  return ZpAddress::fromValue(addr, name, constant);
 }
 
 
-cppnes::AbsAddress cppnes::RamAllocator::alloc(std::string_view name)
+cppnes::AbsAddress cppnes::RamAllocator::alloc(std::string_view name, bool constant)
 {
-  return allocBlock(name, 1);
+  return allocBlock(name, 1, 0, constant);
 }
 
-cppnes::AbsAddress cppnes::RamAllocator::allocBlock(std::string_view name, uint16_t size, uint16_t baseAddress)
+cppnes::AbsAddress cppnes::RamAllocator::allocBlock(std::string_view name, uint16_t size, uint16_t baseAddress, bool constant)
 {
   assert(0 < size);
   if (size == 0)
@@ -43,5 +43,5 @@ cppnes::AbsAddress cppnes::RamAllocator::allocBlock(std::string_view name, uint1
     next_ += size;
   }
 
-  return AbsAddress{ base, name };
+  return AbsAddress{ base, name, constant };
 }

@@ -1,9 +1,8 @@
 #include "nesdefs.hpp"
-
 #include <filesystem>
-#include <cstdlib>
-#include <sstream>
 #include <stdexcept>
+#include "3rdparty/utils_log/logger.hpp"
+#include "3rdparty/procmngr.h"
 
 
 bool cppnes::Toolchain::isValid()
@@ -21,26 +20,36 @@ void cppnes::Toolchain::setLd65(std::string_view path)
   ld65path_ = path;
 }
 
-void cppnes::Toolchain::compile(const std::filesystem::path &asmFile, const std::filesystem::path &objFile)
+void cppnes::Toolchain::compile(const std::filesystem::path &asmFile,  const std::filesystem::path &objFile)
 {
-  // example call: ca65 example.s --verbose --target nes -g -o example.o
   if (!isValid())
     throw std::runtime_error("Toolchain not configured");
+
   if (!std::filesystem::exists(asmFile))
     throw std::runtime_error("ASM file does not exist");
-  std::ostringstream cmd;
-  cmd << '"' << ca65path_ << '"'
-    << " \"" << asmFile.string() << "\""
-    << " --target nes"
-    << " -g"
-    << " -o \"" << objFile.string() << '"';
 
-  int rc = std::system(cmd.str().c_str());
-  if (rc != 0)
+  ProcessManager pm;
+
+  std::vector<std::string> args = {
+      asmFile.string(),
+      "-g",
+      "-o",
+      objFile.string()
+  };
+
+  if (!pm.startProcess(ca65path_.string(), args))
+    throw std::runtime_error("Failed to start ca65");
+
+  if (!pm.waitForCompletion())
+    throw std::runtime_error("ca65 timeout");
+
+  if (pm.getExitCode() != 0)
     throw std::runtime_error("ca65 compilation failed");
+
+  LOG_MSG << "ca65 compilation complete.";
 }
 
-void cppnes::Toolchain::link(const std::filesystem::path &cfgFile, const std::filesystem::path &objFile, std::string_view outputPath)
+void cppnes::Toolchain::link(const std::filesystem::path &cfgFile, const std::filesystem::path &objFile, std::filesystem::path outputPath)
 {
   if (!isValid())
     throw std::runtime_error("Toolchain not configured");
@@ -51,13 +60,26 @@ void cppnes::Toolchain::link(const std::filesystem::path &cfgFile, const std::fi
   if (!std::filesystem::exists(objFile))
     throw std::runtime_error("Object file does not exist");
 
-  std::ostringstream cmd;
-  cmd << '"' << ld65path_ << '"'
-    << " -C \"" << cfgFile.string() << '"'
-    << " \"" << objFile.string() << '"'
-    << " -o \"" << outputPath << '"';
+  ProcessManager pm;
 
-  int rc = std::system(cmd.str().c_str());
-  if (rc != 0)
-    throw std::runtime_error("ld65 linking failed");
+  std::vector<std::string> args = {
+    objFile.string(),
+    "-C",
+    cfgFile.string(),
+    "--dbgfile",
+    (outputPath.parent_path() / "prg.dbg").string(),
+    "-o",
+    outputPath.string()
+  };
+
+  if (!pm.startProcess(ld65path_.string(), args))
+    throw std::runtime_error("Failed to start ld65");
+
+  if (!pm.waitForCompletion())
+    throw std::runtime_error("ld65 timeout");
+
+  if (pm.getExitCode() != 0)
+    throw std::runtime_error("ld65 compilation failed");
+
+  LOG_MSG << "ld65 linking complete.";
 }

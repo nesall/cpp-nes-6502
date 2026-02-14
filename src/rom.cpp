@@ -1,6 +1,6 @@
 #include "nesdefs.hpp"
 #include "asmemitter.hpp"
-#include "utils_log/logger.hpp"
+#include "3rdparty/utils_log/logger.hpp"
 #include <fstream>
 #include <cassert>
 
@@ -75,15 +75,16 @@ void cppnes::Rom::emitAsm(std::string_view dirPath)
   emitter.emitLinkerConfig(cfg);
 }
 
-void cppnes::Rom::build(std::string_view outputPath)
+void cppnes::Rom::build(std::string_view outputPath, std::string_view workingDir)
 {
   assert(imp->tools_);
   // 1. Emit asm/cfg to a temp dir
-  auto tmpDir = std::filesystem::temp_directory_path() / "cpp-nes-6502";
-  emitAsm(tmpDir.string());
+  auto workDir = !workingDir.empty() ? std::filesystem::path{ workingDir } : std::filesystem::temp_directory_path() / "cpp-nes-6502";
+  std::filesystem::create_directories(workDir);
+  emitAsm(workDir.string());
 
   // 2. Invoke ca65 + ld65 via Toolchain
-  imp->tools_->compile(tmpDir / "prg.asm", tmpDir / "prg.o");
-  imp->tools_->link(tmpDir / "lnk.cfg", tmpDir / "prg.o", outputPath);
+  imp->tools_->compile(workDir / "prg.asm", workDir / "prg.o");
+  imp->tools_->link(workDir / "lnk.cfg", workDir / "prg.o", std::filesystem::path(outputPath) / "prg.nes");
 }
 

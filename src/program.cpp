@@ -37,7 +37,26 @@ cppnes::Subroutine &cppnes::Program::getSubroutine(std::string_view name)
   throw std::runtime_error("Subroutine not found: " + std::string(name));
 }
 
-std::string cppnes::Program::initStandardReset()
+cppnes::DataBlock &cppnes::Program::getDataBlock(const Label &label)
+{
+  auto it = dataBlocks_.find(label.name());
+  if (it != dataBlocks_.end())
+    return *it->second;
+  throw std::runtime_error("Data block not found: " + label.name());
+}
+
+cppnes::DataBlock &cppnes::Program::addDataBlock(const Label &label)
+{
+  auto it = dataBlocks_.find(label.name());
+  if (it != dataBlocks_.end())
+    return *it->second;
+  auto db = std::make_unique<DataBlock>(label.name());
+  auto &ref = *db;
+  dataBlocks_.emplace(label.name(), std::move(db));
+  return ref;
+}
+
+cppnes::Subroutine &cppnes::Program::initStandardReset()
 {
   std::string name{ "reset_handler" };
 
@@ -46,26 +65,38 @@ std::string cppnes::Program::initStandardReset()
 
   Subroutine &reset = addSubroutine(name);
   setResetVector(reset);
-  reset
+  return reset
     .sei()
     .cld()
-    .ldx(Immediate{ 0x40 })
-    .stx(Absolute{ AbsAddress{0x4017} })
-    .ldx(Immediate{ 0xFF })
+    .bblocks().enableRendering(false)
+    .ldx(imm(0x40))
+    .stx(abs(0x4017))
+    .ldx(imm(0xFF))
     .txs()
     .inx()
-    .stx(PPUCTRL_Abs)
-    .stx(PPUMASK_Abs)
-    .stx(Absolute{ AbsAddress{0x4010} })
-    .bit(PPUSTATUS_Abs)
-    .label(vblankwait0)
-    .bit(PPUSTATUS_Abs)
-    .bpl(vblankwait0)
-    .label(vblankwait1)
-    .bit(PPUSTATUS_Abs)
-    .bpl(vblankwait1)
-    .jmp(Label{ "main" });
-
-  return name;
+    .stx(abs(PPUCTRL))
+    .stx(abs(PPUMASK))
+    .stx(abs(0x4010))
+    .bblocks().waitVBlank()
+    .bblocks().waitVBlank()
+    .bblocks().enableRendering(true)
+    ;
 }
 
+void cppnes::Program::addConstant(std::string_view name, int32_t value)
+{
+  constants_[std::string(name)] = value;
+}
+
+bool cppnes::Program::hasConstant(std::string_view name) const
+{
+  return constants_.count(std::string{ name });
+}
+
+int32_t cppnes::Program::getConstant(std::string_view name) const
+{
+  auto it = constants_.find(std::string(name));
+  if (it == constants_.end())
+    throw std::runtime_error("Constant not found: " + std::string(name));
+  return it->second;
+}

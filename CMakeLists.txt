@@ -18,12 +18,12 @@ endif()
 
 include(FetchContent)
 
-FetchContent_Declare(
-  utils_log
-  GIT_REPOSITORY https://github.com/nesall/utils-log.git
-  GIT_TAG main
-)
-FetchContent_MakeAvailable(utils_log)
+#FetchContent_Declare(
+#  utils_log
+#  GIT_REPOSITORY https://github.com/nesall/utils-log.git
+#  GIT_TAG main
+#)
+#FetchContent_MakeAvailable(utils_log)
 
 FetchContent_Declare(
     Catch2
@@ -37,8 +37,8 @@ if(WIN32)
 endif()
 
 # logging
-add_library(utils_log INTERFACE)
-target_include_directories(utils_log INTERFACE ${utils_log_SOURCE_DIR})
+#add_library(utils_log INTERFACE)
+#target_include_directories(utils_log INTERFACE ${utils_log_SOURCE_DIR})
 
 # Create executable
 add_library(${PROJECT_NAME}
@@ -51,6 +51,7 @@ add_library(${PROJECT_NAME}
   src/program.cpp
   src/subroutine.cpp
   src/rom.cpp
+  src/bblocks.cpp
   src/emitter/asmemitter.cpp
 )
 
@@ -63,7 +64,7 @@ target_include_directories(${PROJECT_NAME}
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
-  utils_log
+  #utils_log
   Catch2
 )
 

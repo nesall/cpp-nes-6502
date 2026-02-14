@@ -11,73 +11,95 @@
 #include <vector>
 #include <array>
 #include <variant>
+#include <unordered_map>
+#include <cassert>
 
 namespace cppnes {
 
   class Toolchain {
-    std::string ca65path_;
-    std::string ld65path_;
+    std::filesystem::path ca65path_;
+    std::filesystem::path ld65path_;
   public:
     [[nodiscard]] bool isValid();
     void setCa65(std::string_view path);
     void setLd65(std::string_view path);
-    std::string ca65Path() const { return ca65path_; }
-    std::string ld65Path() const { return ld65path_; }
+    std::filesystem::path ca65Path() const { return ca65path_; }
+    std::filesystem::path ld65Path() const { return ld65path_; }
     void compile(const std::filesystem::path &asmFile, const std::filesystem::path &objFile);
-    void link(const std::filesystem::path &cfgFile, const std::filesystem::path &objFile, std::string_view outputPath);
+    void link(const std::filesystem::path &cfgFile, const std::filesystem::path &objFile, std::filesystem::path outputPath);
   };
 
   // A label resolves to an address later.
   class Label {
     std::string name_;
   public:
-    explicit Label(std::string_view name) : name_(name) {}
-    std::string_view name() const { return name_; }
+    Label(std::string_view name) : name_(name) {}
+    Label(const char *name) : name_(name) {}
+    Label(const std::string &name) : name_(name) {}
+    std::string name() const { return name_; }
   };
 
   class ZpAddress {
     uint8_t value_;
     std::string name_;
+    bool constant_ = false;
   public:
-    explicit ZpAddress(uint8_t value, std::string_view name = "") : value_(value), name_(name) {}
+    explicit ZpAddress(uint8_t value, std::string_view name = "", bool constant = false) : value_(value), name_(name), constant_(constant) {
+      assert(!constant || !name.empty());
+    }
     [[nodiscard]]
-    static ZpAddress fromValue(uint32_t value, std::string_view name = "") {
+    static ZpAddress fromValue(uint32_t value, std::string_view name = "", bool constant = false) {
       if (0xFF < value) throw std::range_error("Zero page address must be between 0x0000 and 0x00FF");
-      return ZpAddress{ static_cast<uint8_t>(value), name };
+      return ZpAddress{ static_cast<uint8_t>(value), name, constant };
     }
     [[nodiscard]] uint8_t value() const { return value_; }
-    [[nodiscard]] std::string_view name() const { return name_; }
+    [[nodiscard]] std::string name() const { return name_; }
+    [[nodiscard]] bool isConstant() const { return constant_; }
+    [[nodiscard]] ZpAddress operator+(uint8_t offset) const {
+      if (0xFF < static_cast<uint32_t>(value_) + offset) throw std::range_error("Zero page address overflow");
+      return ZpAddress{ static_cast<uint8_t>(value_ + offset), name_ };
+    }
   };
 
   class AbsAddress {
     uint16_t value_;
     std::string name_;
+    bool constant_ = false;
   public:
-    explicit AbsAddress(uint16_t value, std::string_view name = "") : value_(value), name_(name) {
+    explicit AbsAddress(uint16_t value, std::string_view name = "", bool constant = false) : value_(value), name_(name), constant_(constant) {
+      assert(!constant || !name.empty());
     }
     [[nodiscard]]
-    static AbsAddress fromValue(uint32_t value, std::string_view name = "") {
+    static AbsAddress fromValue(uint32_t value, std::string_view name = "", bool constant = false) {
       if (0xFFFF < value) throw std::runtime_error("Absolute address must be between 0x0000 and 0xFFFF");
-      return AbsAddress{ static_cast<uint16_t>(value), name };
+      return AbsAddress{ static_cast<uint16_t>(value), name, constant };
     }
     [[nodiscard]] uint16_t value() const { return value_; }
-    [[nodiscard]] std::string_view name() const { return name_; }
+    [[nodiscard]] std::string name() const { return name_; }
+    [[nodiscard]] bool isConstant() const { return constant_; }
+    [[nodiscard]] AbsAddress operator+(uint16_t offset) const {
+      if (0xFFFF < static_cast<uint32_t>(value_) + offset) throw std::range_error("RAM address overflow");
+      return AbsAddress{ static_cast<uint16_t>(value_ + offset), name_ };
+    }
+    bool operator ==(const AbsAddress &other) const {
+      return value_ == other.value_;
+    }
   };
 
   class ZeroPageAllocator {
     uint16_t next_ = Min;
   public:
-    [[nodiscard]] ZpAddress alloc(std::string_view name);
-    static constexpr uint16_t Min = 0x0000;
+    [[nodiscard]] ZpAddress alloc(std::string_view name, bool constant = false);
+    static constexpr uint16_t Min = 0x0010;
     static constexpr uint16_t Max = 0x00FF;
   };
 
   class RamAllocator {
     uint16_t next_ = Min;
   public:
-    [[nodiscard]] AbsAddress alloc(std::string_view name);
-    [[nodiscard]] AbsAddress allocBlock(std::string_view name, uint16_t size, uint16_t baseAddress = 0);
-    static constexpr uint16_t Min = 0x0200;
+    [[nodiscard]] AbsAddress alloc(std::string_view name, bool constant = false);
+    [[nodiscard]] AbsAddress allocBlock(std::string_view name, uint16_t size, uint16_t baseAddress = 0, bool constant = false);
+    static constexpr uint16_t Min = 0x0300;
     static constexpr uint16_t Max = 0x07FF;
   };
 
@@ -92,15 +114,12 @@ namespace cppnes {
   struct Accumulator {}; // accumulator ops
 
   struct ZeroPage { ZpAddress addr; };
-  struct ZeroPageX { ZpAddress addr; };
-  struct ZeroPageY { ZpAddress addr; };
+  struct ZeroPageX { std::variant<ZpAddress, Label> base; };
+  struct ZeroPageY { std::variant<ZpAddress, Label> base; };
 
-  struct Absolute { 
-    AbsAddress addr;
-    static Absolute val(uint32_t a) { return { AbsAddress::fromValue(a) }; }
-  };
-  struct AbsoluteX { AbsAddress addr; };
-  struct AbsoluteY { AbsAddress addr; };
+  struct Absolute { AbsAddress addr; };
+  struct AbsoluteX { std::variant<AbsAddress, Label> base; };
+  struct AbsoluteY { std::variant<AbsAddress, Label> base; };
 
   struct Indirect { AbsAddress addr; };  // JMP only
 
@@ -138,11 +157,15 @@ namespace cppnes {
   struct Instruction {
     Opcode opcode;
     Operand operand;
+    //std::string comment;
   };
 
+  struct LineComment { std::string comment; }; // ; comment on new line
+  struct InlineComment { std::string comment; }; // INST ; comment
   struct LabelDef { Label label; };  // label definition/placement
-  using Entry = std::variant<Instruction, LabelDef>;
+  using Entry = std::variant<Instruction, LabelDef, LineComment, InlineComment>;
 
+  class SubroutineBblocksProxy;
 
   class Subroutine {
   public:
@@ -223,22 +246,22 @@ namespace cppnes {
     Subroutine &dec(AbsoluteX i) { return emitInst(Opcode::DEC, i); }
 
     // Shift / rotate
-    Subroutine &asl(Accumulator i) { return emitInst(Opcode::ASL, i); }
+    Subroutine &asl() { return emitInst(Opcode::ASL, Accumulator{}); }
     Subroutine &asl(ZeroPage i) { return emitInst(Opcode::ASL, i); }
     Subroutine &asl(ZeroPageX i) { return emitInst(Opcode::ASL, i); }
     Subroutine &asl(Absolute i) { return emitInst(Opcode::ASL, i); }
     Subroutine &asl(AbsoluteX i) { return emitInst(Opcode::ASL, i); }
-    Subroutine &lsr(Accumulator i) { return emitInst(Opcode::LSR, i); }
+    Subroutine &lsr() { return emitInst(Opcode::LSR, Accumulator{}); }
     Subroutine &lsr(ZeroPage i) { return emitInst(Opcode::LSR, i); }
     Subroutine &lsr(ZeroPageX i) { return emitInst(Opcode::LSR, i); }
     Subroutine &lsr(Absolute i) { return emitInst(Opcode::LSR, i); }
     Subroutine &lsr(AbsoluteX i) { return emitInst(Opcode::LSR, i); }
-    Subroutine &rol(Accumulator i) { return emitInst(Opcode::ROL, i); }
+    Subroutine &rol() { return emitInst(Opcode::ROL, Accumulator{}); }
     Subroutine &rol(ZeroPage i) { return emitInst(Opcode::ROL, i); }
     Subroutine &rol(ZeroPageX i) { return emitInst(Opcode::ROL, i); }
     Subroutine &rol(Absolute i) { return emitInst(Opcode::ROL, i); }
     Subroutine &rol(AbsoluteX i) { return emitInst(Opcode::ROL, i); }
-    Subroutine &ror(Accumulator i) { return emitInst(Opcode::ROR, i); }
+    Subroutine &ror() { return emitInst(Opcode::ROR, Accumulator{}); }
     Subroutine &ror(ZeroPage i) { return emitInst(Opcode::ROR, i); }
     Subroutine &ror(ZeroPageX i) { return emitInst(Opcode::ROR, i); }
     Subroutine &ror(Absolute i) { return emitInst(Opcode::ROR, i); }
@@ -323,10 +346,8 @@ namespace cppnes {
     Subroutine &jmp(Absolute i) { return emitInst(Opcode::JMP, i); }
     Subroutine &jmp(Indirect i) { return emitInst(Opcode::JMP, i); }
     Subroutine &jmp(const Label &label) { return emitInst(Opcode::JMP, label); }
-    Subroutine &jmp(std::string_view labelName) { return emitInst(Opcode::JMP, Label(labelName)); }
     Subroutine &jsr(Absolute i) { return emitInst(Opcode::JSR, i); }
     Subroutine &jsr(const Label &label) { return emitInst(Opcode::JSR, label); }
-    Subroutine &jsr(std::string_view labelName) { return emitInst(Opcode::JSR, Label(labelName)); }
     Subroutine &rts() { return emitInst(Opcode::RTS); }
     Subroutine &rti() { return emitInst(Opcode::RTI); }
 
@@ -334,6 +355,11 @@ namespace cppnes {
     Subroutine &brk() { return emitInst(Opcode::BRK); } // triggers an interrupt request (IRQ)
     Subroutine &nop() { return emitInst(Opcode::NOP); }
     Subroutine &label(const Label &l) { instructions_.push_back(LabelDef{ l }); return *this; }
+    Subroutine &comment(const std::string &c) { instructions_.push_back(LineComment{ c }); return *this; }
+    Subroutine &commentPrev(const std::string &c) { instructions_.push_back(InlineComment{ c }); return *this; }
+    
+
+    SubroutineBblocksProxy bblocks();
 
     std::string name() const { return name_; }
     const std::vector<Entry> &instructions() const { return instructions_; }
@@ -356,29 +382,90 @@ namespace cppnes {
     std::string name_;
   };
 
+
+  class DataBlock {
+  public:
+    explicit DataBlock(std::string_view label) : label_(label) {}
+    DataBlock &addByte(uint8_t value, std::string_view comment = "") {
+      entries_.push_back(ByteEntry{ {value}, std::string(comment) });
+      return *this;
+    }
+    DataBlock &addBytes(const std::vector<uint8_t> &values, std::string_view comment = "") {
+      entries_.push_back(ByteEntry{ values, std::string(comment) });
+      return *this;
+    }
+    DataBlock &addWord(uint16_t value, std::string_view comment = "") {
+      entries_.push_back(WordEntry{ {value}, std::string(comment) });
+      return *this;
+    }
+    DataBlock &addWords(const std::vector<uint16_t> &values, std::string_view comment = "") {
+      entries_.push_back(WordEntry{ values, std::string(comment) });
+      return *this;
+    }
+    void clear() { entries_.clear(); }
+    std::string_view label() const { return label_; }
+    struct ByteEntry {
+      std::vector<uint8_t> data;
+      std::string comment;
+    };
+    struct WordEntry {
+      std::vector<uint16_t> data;
+      std::string comment;
+    };
+    using Entry = std::variant<ByteEntry, WordEntry>;
+    const std::vector<Entry> &entries() const { return entries_; }
+  private:
+    std::string label_;
+    std::vector<Entry> entries_;
+  };
+
+
   // Program is the 6502 code. Subroutines, labels, memory map, interrupt vectors. Pure logic.
   class Program {
   public:
     explicit Program(MemoryMap &mmap);
-    // Reset vector occurs when the system is first turned on, or when the user presses the Reset button on the front of the console.
+    // Triggered every time the NES starts up, or the reset button is pressed.
     void setResetVector(const Subroutine &handler);
-    // NMI vector (“Non-Maskable Interrupt”) occurs when the PPU starts preparing the next frame of graphics, 60 times per second.
+    // Triggered when the PPU starts preparing the next frame of graphics. VBlank time.
     void setNMIVector(const Subroutine &handler);
-    // IRQ vector (“Interrupt Request”) can be triggered by the NES’ sound processor or from certain types of cartridge hardware.
+    // Triggered from some mapper chips or audio interrupts (may be skipped).
     void setIRQVector(const Subroutine &handler);
     const Subroutine *resetVector() const { return resetVector_; }
     const Subroutine *nmiVector() const { return nmiVector_; }
     const Subroutine *irqVector() const { return irqVector_; }
+    Subroutine &initStandardReset();
     Subroutine &addSubroutine(std::string_view name);
     Subroutine &getSubroutine(std::string_view name);
-    std::string initStandardReset();
     const std::vector<std::unique_ptr<Subroutine>> &subroutines() const { return subroutines_; }
+
+    DataBlock &addDataBlock(const Label &label);
+    DataBlock &getDataBlock(const Label &label);
+    const std::unordered_map<std::string, std::unique_ptr<DataBlock>> &dataBlocks() const { return dataBlocks_; }
+
+    MemoryMap &memoryMap() const { return mmap_; }
+
+    [[nodiscard]]
+    ZpAddress allocZp(std::string_view name, bool constant = false) { return mmap_.zeroPage.alloc(name, constant); }
+    [[nodiscard]]
+    AbsAddress allocRam(std::string_view name, bool constant = false) { return mmap_.ram.alloc(name, constant); }
+    [[nodiscard]]
+    AbsAddress allocRamBlock(std::string_view name, uint16_t size, uint16_t baseAddress = 0) {
+      return mmap_.ram.allocBlock(name, size, baseAddress);
+    }
+
+    void addConstant(std::string_view name, int32_t value);
+    bool hasConstant(std::string_view name) const;
+    int32_t getConstant(std::string_view name) const;
+    const std::unordered_map<std::string, int32_t> &constants() const { return constants_; }
+
   private:
     MemoryMap &mmap_;
-    std::vector<std::unique_ptr<Subroutine>> subroutines_;
     const Subroutine *resetVector_ = nullptr;
     const Subroutine *nmiVector_ = nullptr;
     const Subroutine *irqVector_ = nullptr;
+    std::vector<std::unique_ptr<Subroutine>> subroutines_;
+    std::unordered_map<std::string, std::unique_ptr<DataBlock>> dataBlocks_;
+    std::unordered_map<std::string, int32_t> constants_;
   };
 
   class Resources {
@@ -413,7 +500,7 @@ namespace cppnes {
     void setEmitterOptions(const AsmEmitterOptions &options);
     uint8_t mirroringByte() const;
     void emitAsm(std::string_view dirPath);
-    void build(std::string_view filePath);
+    void build(std::string_view outputPath, std::string_view workingDir = "");
   };
 
 } // namespace cppnes
