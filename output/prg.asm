@@ -115,27 +115,6 @@ forever:
   EOR #$FF
   AND buttonsPrev ; $13
   STA buttonsReleased ; $15
-  LDA buttonsPressed ; $14
-  AND #$08
-  BEQ no_up
-  INC $16 ; colorIndex
-  LDA $16 ; colorIndex
-  CMP #$10
-  BNE update_pal
-  LDA #$00
-  STA $16 ; colorIndex
-update_pal:
-  LDA PPUSTATUS ; $2002
-  LDA #$3F
-  STA PPUADDR ; $2006
-  LDA #$00
-  STA PPUADDR ; $2006
-  LDX $16 ; colorIndex
-  LDA PaletteData,X
-  STA PPUDATA ; $2007
-no_up:
-  LDA buttons ; $12
-  STA buttonsPrev ; $13
   RTS
 .endproc ;readInput
 

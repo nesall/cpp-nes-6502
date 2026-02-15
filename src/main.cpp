@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
   Rom rom;
   rom.setProgram(prg);
   rom.setResources(rcs);
+  rom.setMirroring(Mirroring::None);
 
   const Label paletteLabel{ "PaletteData" };
   auto &block = prg.addDataBlock(paletteLabel);
@@ -92,21 +93,21 @@ int main(int argc, char *argv[]) {
 
   prg.addSubroutine("readInput")
     .bblocks().readController(buttons, buttonsPrev, buttonsPressed, buttonsReleased)
-    .lda(zp(buttonsPressed))
-    .and_(imm(BTN_UP))
-    .beq(Label("no_up"))
-    .inc(zp(colorIndex))
-    .lda(zp(colorIndex))
-    .cmp(imm(16))
-    .bne(Label("update_pal"))
-    .bblocks().setAddrByte(colorIndex, 0)
-    .label(Label("update_pal"))
-    .bblocks().setPPUAddr(0x3f00)
-    .ldx(zp(colorIndex))
-    .lda(absx(paletteLabel))
-    .sta(abs(PPUDATA))
-    .label(Label("no_up"))
-    .bblocks().setAddrByte(buttonsPrev, buttons)
+    //.lda(zp(buttonsPressed))
+    //.and_(imm(BTN_UP))
+    //.beq(Label("no_up"))
+    //.inc(zp(colorIndex))
+    //.lda(zp(colorIndex))
+    //.cmp(imm(16))
+    //.bne(Label("update_pal"))
+    //.bblocks().setAddrByte(colorIndex, 0)
+    //.label(Label("update_pal"))
+    //.bblocks().setPPUAddr(0x3f00)
+    //.ldx(zp(colorIndex))
+    //.lda(absx(paletteLabel))
+    //.sta(abs(PPUDATA))
+    //.label(Label("no_up"))
+    //.bblocks().setAddrByte(buttonsPrev, buttons)
     .rts();
 
   prg.addSubroutine("updatePlayer1")

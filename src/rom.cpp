@@ -53,7 +53,12 @@ void cppnes::Rom::setEmitterOptions(const AsmEmitterOptions &options)
 
 uint8_t cppnes::Rom::mirroringByte() const
 {
-  return imp->mirroring_ == Mirroring::Vertical ? 0x01 : 0x00;
+  switch (imp->mirroring_) {
+  case Mirroring::Horizontal: return 0x00;
+  case Mirroring::Vertical: return 0x01;
+  case Mirroring::None: return 0x02;
+  }
+  return 0x00;
 }
 
 void cppnes::Rom::emitAsm(std::string_view dirPath)

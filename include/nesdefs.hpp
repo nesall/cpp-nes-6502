@@ -481,7 +481,7 @@ namespace cppnes {
   };
 
   enum class Mapper { NROM, MMC1, UNROM, CNROM, MMC3 };
-  enum class Mirroring { Horizontal, Vertical };
+  enum class Mirroring { Horizontal, Vertical, None };
 
   struct AsmEmitterOptions;
 
