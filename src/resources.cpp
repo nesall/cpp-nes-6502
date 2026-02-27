@@ -21,6 +21,7 @@ void cppnes::Resources::loadCHR(std::string_view path)
   file.read(reinterpret_cast<char *>(chrData_.data()), size);
   if (!file)
     throw std::runtime_error("Failed to read complete CHR file: " + p.string());
+  chrPath_ = path;
 }
 
 void cppnes::Resources::loadPalettes(std::string_view path)
@@ -32,4 +33,9 @@ void cppnes::Resources::setPalettes(std::array<uint8_t, 16> bg, std::array<uint8
 {
   bgPal_ = bg;
   spPal_ = spr;
+}
+
+void cppnes::Resources::addNametable(std::string_view label, std::string_view filename)
+{
+  nametables_[std::string(label)] = std::string(filename);
 }

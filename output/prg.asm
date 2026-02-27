@@ -5,7 +5,7 @@
   .byte $4E, $45, $53, $1A  ; 'NES' + MS-DOS EOF
   .byte $02                  ; PRG-ROM size (2 x 16KB)
   .byte $01                  ; CHR-ROM size (1 x 8KB)
-  .byte $00                  ; Mapper low / mirroring
+  .byte $02                  ; Mapper low / mirroring
   .byte $00                  ; Mapper high
   .byte $00, $00, $00, $00, $00, $00, $00, $00  ; padding
 ; Header is total 16 bytes.
@@ -19,6 +19,7 @@ buttons = $12
 buttonsPrev = $13
 buttonsPressed = $14
 buttonsReleased = $15
+namPtr = $16
 PPUCTRL = $2000
 PPUMASK = $2001
 PPUSTATUS = $2002
@@ -29,10 +30,6 @@ JOY1 = $4016
 .proc reset_handler
   SEI
   CLD
-  LDA PPUMASK ; $2001
-  AND #$E7
-  ORA #$00
-  STA PPUMASK ; $2001 ; enable rendereing
   LDX #$40
   STX $4017
   LDX #$FF
@@ -47,10 +44,9 @@ JOY1 = $4016
 @vblank1:
   LDA PPUSTATUS ; $2002
   BPL @vblank1
-  LDA PPUMASK ; $2001
-  AND #$FF
-  ORA #$18
-  STA PPUMASK ; $2001 ; disable rendereing
+  LDA #$16
+  STA namPtr ; $16 ; 2 bytes
+; Load palette
   LDA PPUSTATUS ; $2002
   LDA #$3F
   STA PPUADDR ; $2006
@@ -63,10 +59,30 @@ JOY1 = $4016
   INX
   CPX #$20
   BNE @loadPalLoop0
-  LDA #$1E
-  STA PPUMASK ; $2001
+; Load nametable
+  LDA #<TitleNam
+  STA namPtr ; $16
+  LDA #>TitleNam
+  STA $17 ; namPtr
+  LDA PPUSTATUS ; $2002
+  LDA #$20
+  STA PPUADDR ; $2006
   LDA #$00
-  STA $16 ; colorIndex
+  STA PPUADDR ; $2006
+  LDX #$04
+  LDY #$00
+@loadNTLoop0:
+  LDA ($16),Y
+  STA PPUDATA ; $2007
+  INY
+  BNE @loadNTLoop0
+  INC $17 ; namPtr
+  DEX
+  BNE @loadNTLoop0
+  LDA PPUMASK ; $2001
+  AND #$FF
+  ORA #$18
+  STA PPUMASK ; $2001 ; enable rendereing
   LDA #$78
   STA playerX ; $10
   LDA #$64
@@ -157,10 +173,10 @@ forever:
 .endproc ;updatePlayer1
 
 PaletteData:
-  .byte $0F,$31,$01,$30 ;Background palette 0
-  .byte $0F,$02,$0A,$07 ;Background palette 1
-  .byte $0F,$31,$0B,$07 ;Background palette 2
-  .byte $0F,$08,$00,$07 ;Background palette 3
+  .byte $0F,$2D,$31,$30 ;Background palette 0
+  .byte $0F,$0C,$21,$32 ;Background palette 1
+  .byte $0F,$05,$25,$25 ;Background palette 2
+  .byte $0F,$0B,$1A,$29 ;Background palette 3
   .byte $0F,$00,$10,$30 ;Foreground palette 0
   .byte $0F,$39,$1C,$05 ;Foreground palette 1
   .byte $0F,$3B,$02,$05 ;Foreground palette 2
@@ -176,7 +192,11 @@ OAMBuffer:
   .word 0 ; IRQ
 
 .segment "CHARS"
-; WARNING: No CHR data loaded
-.res 8192 ; Reserving 8192 bytes of blank space
+; CHR data loaded from file: D:/workspace/projects/cpp-nes-6502/rc/NewFile.chr
+.incbin "D:/workspace/projects/cpp-nes-6502/rc/NewFile.chr"
+
+.segment "RODATA"
+TitleNam:
+  .incbin "D:/workspace/projects/cpp-nes-6502/rc/title-scr.nam"
 
 .segment "STARTUP"

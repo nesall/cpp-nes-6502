@@ -1,6 +1,12 @@
 #include "nesdefs_helper.hpp"
 #include "3rdparty/utils_log/logger.hpp"
 
+namespace {
+
+
+
+} // anonymous namespace
+
 cppnes::Subroutine &cppnes::bblocks::waitVBlank(Subroutine &sub)
 {
   static int vblankCount = 0;
@@ -226,10 +232,11 @@ cppnes::Subroutine &cppnes::bblocks::clearOAMBuffer(Subroutine &sub, AbsAddress 
   return sub;
 }
 
-cppnes::Subroutine &cppnes::bblocks::loadPalette(Subroutine &sub, const Label &dataLabel, uint8_t mask)
+cppnes::Subroutine &cppnes::bblocks::loadPalette(Subroutine &sub, const Label &dataLabel)
 {
   static int palCount = 0;
   Label loop("@loadPalLoop" + std::to_string(palCount++));
+  sub.comment("Load palette");
   setPPUAddr(sub, 0x3f00)
     .ldx(immZero)
     .label(loop)
@@ -237,9 +244,34 @@ cppnes::Subroutine &cppnes::bblocks::loadPalette(Subroutine &sub, const Label &d
     .sta(abs(PPUDATA))
     .inx()
     .cpx(imm(0x20))  // 32 bytes total (16 bg + 16 sprite)
+    .bne(loop);
+  return sub;
+}
+
+cppnes::Subroutine &cppnes::bblocks::loadNametable(Subroutine &sub, const Label &dataLabel, ZpAddress ptr)
+{
+  static int ntCount = 0;
+  Label loop("@loadNTLoop" + std::to_string(ntCount++));
+
+  // ptr = &dataLabel
+  sub
+    .comment("Load nametable")
+    .lda(lobyte(dataLabel))
+    .sta(zp(ptr))
+    .lda(hibyte(dataLabel))
+    .sta(zp(ptr + 1));
+
+  setPPUAddr(sub, 0x2000)
+    .ldx(imm(0x04))   // 4 pages
+    .ldy(immZero)
+    .label(loop)
+    .lda(indy(ptr))   // LDA (ptr),Y
+    .sta(abs(PPUDATA))
+    .iny()
     .bne(loop)
-    .lda(imm(mask))
-    .sta(abs(PPUMASK));
+    .inc(zp(ptr + 1)) // advance high byte
+    .dex()
+    .bne(loop);
   return sub;
 }
 
@@ -475,10 +507,10 @@ cppnes::Subroutine &cppnes::bblocks::enableRendering(Subroutine &sub, bool enabl
   //0xE7 = 11100111
   if (enable) {
     bblocks::setPPUMaskBits(sub, 0x18, 0x00);
-    sub.commentPrev("disable rendereing");
+    sub.commentPrev("enable rendereing");
   } else {
     bblocks::setPPUMaskBits(sub, 0x00, 0x18);
-    sub.commentPrev("enable rendereing");
+    sub.commentPrev("disable rendereing");
   }
   return sub;
 }

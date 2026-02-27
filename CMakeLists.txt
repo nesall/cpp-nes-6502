@@ -32,6 +32,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
+set(HEADER_FILES
+  include/nesdefs.hpp
+  include/asmemitter.hpp
+  include/nesdefs_helper.hpp
+)
 if(WIN32)
   set(HEADER_FILES ${HEADER_FILES} ./nlohmann_json.natvis)
 endif()
@@ -42,9 +47,7 @@ endif()
 
 # Create executable
 add_library(${PROJECT_NAME}
-  include/nesdefs.hpp
-  include/asmemitter.hpp
-  include/nesdefs_helper.hpp
+  ${HEADER_FILES}
   src/toolchain.cpp
   src/memorymap.cpp
   src/resources.cpp

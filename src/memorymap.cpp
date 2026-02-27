@@ -4,10 +4,18 @@
 
 cppnes::ZpAddress cppnes::ZeroPageAllocator::alloc(std::string_view name, bool constant)
 {
-  if (next_ > Max)
-    throw std::out_of_range("ZeroPageAllocator: zero page exhausted");
+  return allocBlock(name, 1, constant);
+}
 
-  uint16_t addr = next_++;
+cppnes::ZpAddress cppnes::ZeroPageAllocator::allocBlock(std::string_view name, uint8_t size, bool constant)
+{
+  assert(0 < size);
+  if (size == 0)
+    throw std::logic_error("allocBlock: size must be > 0");
+  if (Max < next_ || Max - next_ + 1 < size)
+    throw std::out_of_range("ZeroPageAllocator: zero page exhausted");
+  uint16_t addr = next_;
+  next_ += size;
   return ZpAddress::fromValue(addr, name, constant);
 }
 

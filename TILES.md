@@ -142,3 +142,27 @@ Tiles 0-3: sky
 Tiles 4-7: brick
 ```
 
+
+## Top down structure of a NES screen
+
+```
+SCREEN (256×240 pixels)
+  ↓
+NAMETABLE (32×30 tiles)
+  - Each entry: index to a tile in CHR-ROM (0-255)
+  - Size: 32×30 = 960 bytes
+  ↓
+ATTRIBUTE TABLE (16×16 blocks, packed into 64 bytes)
+  - Each 16×16 block (2×2 tiles) → 2-bit palette selection (0-3)
+  - Size: 64 bytes
+  ↓
+CHR-ROM (tile data)
+  - Each tile: 8×8 pixels, 2-bit color (4 colors per tile)
+  - NES format: 16 bytes per tile (2 bitplanes, 8 bytes each)
+  - Max 256 tiles = 4096 bytes
+  ↓
+PALETTES (4 background palettes)
+  - Each palette: 4 colors (indices into NES master palette 0-63)
+  - Total: 4×4 = 16 bytes
+
+ ```

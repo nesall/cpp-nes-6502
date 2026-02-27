@@ -17,6 +17,10 @@ namespace cppnes {
       std::string operator()(std::monostate) const { return ""; }
       std::string operator()(Accumulator) const { return "A"; }
       std::string operator()(Immediate i) const { return fmt::format("#${:02X}", i.value); }
+      std::string operator()(ImmediateLabel il) const { 
+        char prefix = (il.which == ByteOf::Low) ? '<' : '>';
+        return "#" + std::string(1, prefix) + il.label.name();
+      }
 
       std::string operator()(ZeroPage zp) const {
         auto s = fmt::format("${:02X}", zp.addr.value());
@@ -256,6 +260,7 @@ void cppnes::AsmEmitter::emitLinkerConfig(std::ostream &out) const {
 SEGMENTS {
   HEADER:   load = HEADER,  type = ro;
   CODE:     load = PRG,     type = ro,    start = $8000;
+  RODATA:   load = PRG,     type = ro;
   VECTORS:  load = PRG,     type = ro,    start = $FFFA;
   CHARS:    load = CHR,     type = ro;
   OAM:      load = OAMBUF,  type = bss;
@@ -290,22 +295,36 @@ void cppnes::AsmEmitter::emitChars(const Resources &rc, std::ostream &out) const
     out << "\n";
     return;
   }
-
-  constexpr size_t bytesPerLine = 16;
-  for (size_t i = 0; i < chr.size(); i += bytesPerLine) {
-    out << "    .byte ";
-    size_t lineEnd = (std::min)(i + bytesPerLine, chr.size());
-    for (size_t j = i; j < lineEnd; ++j) {
-      out << fmt::format("${:02X}", chr[j]);
-      if (j < lineEnd - 1) out << ", ";
+  if (rc.chrUseFilename()) {
+    out << fmt::format("; CHR data loaded from file: {}\n", rc.chrPath());
+    out << fmt::format(".incbin \"{}\"\n", rc.chrPath());
+  } else {
+    constexpr size_t bytesPerLine = 16;
+    for (size_t i = 0; i < chr.size(); i += bytesPerLine) {
+      out << "  .byte ";
+      size_t lineEnd = (std::min)(i + bytesPerLine, chr.size());
+      for (size_t j = i; j < lineEnd; ++j) {
+        out << fmt::format("${:02X}", chr[j]);
+        if (j < lineEnd - 1) out << ", ";
+      }
+      // Comment: byte offset, useful for debugging tile boundaries
+      if (imp->options_.emitComments) {
+        size_t tile = i / 16;
+        out << fmt::format("  ; tile {:03d} offset ${:04X}", tile, i);
+      }
+      out << "\n";
     }
-    // Comment: byte offset, useful for debugging tile boundaries
-    if (imp->options_.emitComments) {
-      size_t tile = i / 16;
-      out << fmt::format("  ; tile {:03d} offset ${:04X}", tile, i);
-    }
-    out << "\n";
   }
+  out << "\n";
+
+  if (!rc.nametables().empty()) {
+    out << ".segment \"RODATA\"\n";
+    for (const auto &[label, filename] : rc.nametables()) {
+      out << label << ":\n";
+      out << fmt::format("  .incbin \"{}\"\n", filename);
+    }
+  }
+
   out << "\n";
 }
 

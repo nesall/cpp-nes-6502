@@ -68,7 +68,7 @@ cppnes::Subroutine &cppnes::Program::initStandardReset()
   return reset
     .sei()
     .cld()
-    .bblocks().enableRendering(false)
+    //.bblocks().enableRendering(false)
     .ldx(imm(0x40))
     .stx(abs(0x4017))
     .ldx(imm(0xFF))
@@ -79,7 +79,7 @@ cppnes::Subroutine &cppnes::Program::initStandardReset()
     .stx(abs(0x4010))
     .bblocks().waitVBlank()
     .bblocks().waitVBlank()
-    .bblocks().enableRendering(true)
+    //.bblocks().enableRendering(true)
     ;
 }
 

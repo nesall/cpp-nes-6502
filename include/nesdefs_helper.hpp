@@ -164,7 +164,8 @@ namespace cppnes {
     Subroutine &clearMemory(Subroutine &sub, AbsAddress start, uint8_t length);
     Subroutine &clearMemory(Subroutine &sub, AbsAddress start, uint16_t length, ZpAddress ptr, ZpAddress count);
     Subroutine &clearPage(Subroutine &sub, AbsAddress start);
-    Subroutine &loadPalette(Subroutine &sub, const Label &dataLabel, uint8_t mask = 0b00011110);
+    Subroutine &loadPalette(Subroutine &sub, const Label &dataLabel);
+    Subroutine &loadNametable(Subroutine &sub, const Label &dataLabel, ZpAddress counter);
     Subroutine &loopX(Subroutine &sub, uint8_t count, std::function<void(Subroutine &)> body);
     Subroutine &uploadSprites(Subroutine &sub, AbsAddress oamBuffer = AbsAddress{ 0x0200 });
     Subroutine &setPPUAddr(Subroutine &sub, uint16_t addr);
@@ -199,7 +200,8 @@ namespace cppnes {
     Subroutine &clearMemory(AbsAddress start, uint8_t length) { return bblocks::clearMemory(sub_, start, length); }
     Subroutine &clearMemory(AbsAddress start, uint16_t length, ZpAddress ptr, ZpAddress count) { return bblocks::clearMemory(sub_, start, length, ptr, count); }
     Subroutine &clearPage(AbsAddress start) { return bblocks::clearPage(sub_, start); }
-    Subroutine &loadPalette(const Label &dataLabel, uint8_t mask = 0b00011110) { return bblocks::loadPalette(sub_, dataLabel, mask); }
+    Subroutine &loadPalette(const Label &dataLabel) { return bblocks::loadPalette(sub_, dataLabel); }
+    Subroutine &loadNametable(const Label &namLabel, ZpAddress counter) { return bblocks::loadNametable(sub_, namLabel, counter); }
     Subroutine &loopX(uint8_t count, std::function<void(Subroutine &)> body) { return bblocks::loopX(sub_, count, std::move(body)); }
     Subroutine &uploadSprites(AbsAddress oamBuffer = AbsAddress{ 0x0200 }) { return bblocks::uploadSprites(sub_, oamBuffer); }
     Subroutine &setPPUAddr(uint16_t addr) { return bblocks::setPPUAddr(sub_, addr); }

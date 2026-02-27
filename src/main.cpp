@@ -52,18 +52,23 @@ int main(int argc, char *argv[]) {
   nmi.rti();
   prg.setNMIVector(nmi);
 
-  Resources rcs;
+  const Label titleNamLabel{ "TitleNam" };
+  Resources rc;
+  rc.loadCHR("D:/workspace/projects/cpp-nes-6502/rc/NewFile.chr");
+  rc.addNametable(titleNamLabel.name(), "D:/workspace/projects/cpp-nes-6502/rc/title-scr.nam");
+  rc.setChrUseFilename(true);
+
   Rom rom;
   rom.setProgram(prg);
-  rom.setResources(rcs);
+  rom.setResources(rc);
   rom.setMirroring(Mirroring::None);
-
+           
   const Label paletteLabel{ "PaletteData" };
   auto &block = prg.addDataBlock(paletteLabel);
-  block.addBytes({ clr::Black, clr::PaleBlue, clr::DarkBlue, clr::White }, "Background palette 0");
-  block.addBytes({ clr::Black, clr::DarkerBlue, clr::DarkTeal, clr::DarkBrown }, "Background palette 1");
-  block.addBytes({ clr::Black, clr::PaleBlue, clr::DarkerTeal, clr::DarkBrown }, "Background palette 2");
-  block.addBytes({ clr::Black, clr::DarkOlive, clr::DarkGray, clr::DarkBrown }, "Background palette 3");
+  block.addBytes({ clr::Black, 0x2d, clr::PaleBlue, clr::White }, "Background palette 0");
+  block.addBytes({ clr::Black, 0x0c, 0x21, 0x32 }, "Background palette 1");
+  block.addBytes({ clr::Black, 0x05, 0x25, 0x25 }, "Background palette 2");
+  block.addBytes({ clr::Black, 0x0b, 0x1a, 0x29 }, "Background palette 3");
   block.addBytes({ clr::Black, clr::DarkGray, clr::MediumGray, clr::White}, "Foreground palette 0");
   block.addBytes({ clr::Black, clr::BrightYellow, clr::Aqua, clr::DarkRed }, "Foreground palette 1");
   block.addBytes({ clr::Black, clr::BrightGreen, clr::DarkerBlue, clr::DarkRed }, "Foreground palette 2");
@@ -76,12 +81,14 @@ int main(int argc, char *argv[]) {
   auto buttonsPrev = prg.allocZp("buttonsPrev", true);
   auto buttonsPressed = prg.allocZp("buttonsPressed", true); // newly pressed this frame
   auto buttonsReleased = prg.allocZp("buttonsReleased", true); // released this frame
-
-  auto colorIndex = prg.allocZp("colorIndex");
+  auto namPtr = prg.allocZp("namPtr", 2, true);
 
   reset
+    .bblocks().setAddrByte(namPtr, 0x16).commentPrev("2 bytes")
     .bblocks().loadPalette(paletteLabel)
-    .bblocks().setAddrByte(colorIndex, 0)
+    .bblocks().loadNametable(titleNamLabel, namPtr)
+    .bblocks().enableRendering(true)
+    //.bblocks().setAddrByte(colorIndex, 0)
     .bblocks().setAddrByte(playerX, 120)
     .bblocks().setAddrByte(playerY, 100)
     .bblocks().enableNMI()
@@ -111,11 +118,15 @@ int main(int argc, char *argv[]) {
     .rts();
 
   prg.addSubroutine("updatePlayer1")
-    .bblocks().initPadCallback(buttons, [&playerX](Subroutine &sub, uint8_t btn)
+    .bblocks().initPadCallback(buttons, [&playerX, &playerY](Subroutine &sub, uint8_t btn)
       {
         switch (btn) {
         case BTN_UP: break;
+          sub.dec(zp(playerY));
+          break;
         case BTN_DOWN: break;
+          sub.inc(zp(playerY));
+          break;
         case BTN_LEFT: 
           sub.dec(zp(playerX));
           break;

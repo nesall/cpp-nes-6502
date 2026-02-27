@@ -90,6 +90,7 @@ namespace cppnes {
     uint16_t next_ = Min;
   public:
     [[nodiscard]] ZpAddress alloc(std::string_view name, bool constant = false);
+    [[nodiscard]] ZpAddress allocBlock(std::string_view name, uint8_t size, bool constant = false);
     static constexpr uint16_t Min = 0x0010;
     static constexpr uint16_t Max = 0x00FF;
   };
@@ -137,10 +138,17 @@ namespace cppnes {
     TXA, TAY, TYA, TSX, TXS, NOP
   };
 
+  enum class ByteOf { Low, High };
+  struct ImmediateLabel { Label label; ByteOf which; };
+
+  inline ImmediateLabel lobyte(const Label &l) { return { l, ByteOf::Low }; }
+  inline ImmediateLabel hibyte(const Label &l) { return { l, ByteOf::High }; }
+
   // The operand can be any addressing mode or label
   using Operand = std::variant<
     std::monostate,     // for implied
     Immediate,
+    ImmediateLabel,
     ZeroPage,
     ZeroPageX,
     ZeroPageY,
@@ -178,6 +186,7 @@ namespace cppnes {
     Subroutine &lda(AbsoluteY i) { return emitInst(Opcode::LDA, i); }
     Subroutine &lda(IndexedIndirectX i) { return emitInst(Opcode::LDA, i); }
     Subroutine &lda(IndexedIndirectY i) { return emitInst(Opcode::LDA, i); }
+    Subroutine &lda(ImmediateLabel i) { return emitInst(Opcode::LDA, i); }
 
     // STA
     Subroutine &sta(ZeroPage i) { return emitInst(Opcode::STA, i); }
@@ -194,6 +203,7 @@ namespace cppnes {
     Subroutine &ldx(ZeroPageY i) { return emitInst(Opcode::LDX, i); }
     Subroutine &ldx(Absolute i) { return emitInst(Opcode::LDX, i); }
     Subroutine &ldx(AbsoluteY i) { return emitInst(Opcode::LDX, i); }
+    Subroutine &ldx(ImmediateLabel i) { return emitInst(Opcode::LDX, i); }
 
     // STX (store X)
     Subroutine &stx(ZeroPage i) { return emitInst(Opcode::STX, i); }
@@ -206,6 +216,7 @@ namespace cppnes {
     Subroutine &ldy(ZeroPageX i) { return emitInst(Opcode::LDY, i); }
     Subroutine &ldy(Absolute i) { return emitInst(Opcode::LDY, i); }
     Subroutine &ldy(AbsoluteX i) { return emitInst(Opcode::LDY, i); }
+    Subroutine &ldy(ImmediateLabel i) { return emitInst(Opcode::LDY, i); }
 
     // STY (store Y)
     Subroutine &sty(ZeroPage i) { return emitInst(Opcode::STY, i); }
@@ -447,6 +458,8 @@ namespace cppnes {
     [[nodiscard]]
     ZpAddress allocZp(std::string_view name, bool constant = false) { return mmap_.zeroPage.alloc(name, constant); }
     [[nodiscard]]
+    ZpAddress allocZp(std::string_view name, uint8_t size, bool constant = false) { return mmap_.zeroPage.allocBlock(name, size, constant); }
+    [[nodiscard]]
     AbsAddress allocRam(std::string_view name, bool constant = false) { return mmap_.ram.alloc(name, constant); }
     [[nodiscard]]
     AbsAddress allocRamBlock(std::string_view name, uint16_t size, uint16_t baseAddress = 0) {
@@ -472,12 +485,19 @@ namespace cppnes {
     std::vector<uint8_t> chrData_;
     std::array<uint8_t, 16> bgPal_;
     std::array<uint8_t, 16> spPal_;
+    std::string chrPath_;
+    bool chrUseFilename_ = false;
+    std::unordered_map<std::string, std::string> nametables_; // lable -> filename
   public:
     void loadCHR(std::string_view path);
     void loadPalettes(std::string_view path);
     void setPalettes(std::array<uint8_t, 16> bg, std::array<uint8_t, 16> spr);
-
+    bool chrUseFilename() const { return chrUseFilename_; }
+    std::string chrPath() const { return chrPath_; }
+    void setChrUseFilename(bool useFilename) { chrUseFilename_ = useFilename; }
     const std::vector<uint8_t> &chrData() const { return chrData_; }
+    void addNametable(std::string_view label, std::string_view filename);
+    std::unordered_map<std::string, std::string> nametables() const { return nametables_; }
   };
 
   enum class Mapper { NROM, MMC1, UNROM, CNROM, MMC3 };
